@@ -1,0 +1,11 @@
+.git
+.gitignore
+.env
+config.json
+compose.yml
+docker-compose.yml
+docker-compose.acme.yml
+main
+avatar
+__pycache__
+*.pyc

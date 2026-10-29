@@ -1,0 +1,22 @@
+
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Runtime and generated files
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+*.db
+*.sqlite*
+*.7z
+*.tar.gz
+dist/
+build/
+playwright-report/
+test-results/

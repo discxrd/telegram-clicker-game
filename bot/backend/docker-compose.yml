@@ -1,0 +1,109 @@
+services:
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy
+    container_name: nginx-proxy
+    restart: unless-stopped
+    environment:
+      DEFAULT_HOST: ${PUBLIC_DOMAIN}
+    ports:
+      - "80:80"
+    volumes:
+      - certs:/etc/nginx/certs:ro
+      - vhost:/etc/nginx/vhost.d
+      - html:/usr/share/nginx/html
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+
+  mongodb:
+    image: mongo:7.0
+    restart: unless-stopped
+    command: ["--bind_ip_all"]
+    environment:
+      MONGO_INITDB_DATABASE: db
+    expose:
+      - "27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "quit(db.runCommand({ ping: 1 }).ok ? 0 : 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      CHAT_ID: ${CHAT_ID}
+      ALERT_CHAT_ID: ${ALERT_CHAT_ID:-6885853129}
+      APP_URL: ${APP_URL}
+      BASE_URL: ${BASE_URL}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-charonchiki}
+      PORT: ${PORT:-3000}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017}
+      ENERGY_RECOVERY_INTERVAL_SECONDS: ${ENERGY_RECOVERY_INTERVAL_SECONDS:-120}
+      ENERGY_RECOVERY_AMOUNT: ${ENERGY_RECOVERY_AMOUNT:-1}
+      SUBSCRIPTION_BONUS_ENERGY: ${SUBSCRIPTION_BONUS_ENERGY:-20}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      BOT_STATUS_MONITOR_ENABLED: ${BOT_STATUS_MONITOR_ENABLED:-false}
+      APP_MARKET: ${APP_MARKET:-portugal}
+      WELCOME_TEXT: ${WELCOME_TEXT:-}
+      WELCOME_BUTTON_TEXT: ${WELCOME_BUTTON_TEXT:-}
+    expose:
+      - "3000"
+    volumes:
+      - backend_avatar:/app/avatar
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      APP_URL: ${APP_URL}
+      BASE_URL: ${BASE_URL}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-charonchiki}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongodb:27017}
+      BOT_USE_WEBHOOK: ${BOT_USE_WEBHOOK:-false}
+      INTERNAL_WEBHOOK_URL: ${INTERNAL_WEBHOOK_URL:-http://backend:3000/webhook}
+    volumes:
+      - backend_avatar:/app/avatar
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_MARKET: ${APP_MARKET:-portugal}
+        VITE_APP_TITLE: ${APP_TITLE:-}
+        VITE_REFERRAL_BOT_URL: ${REFERRAL_BOT_URL:-}
+        VITE_REFERRAL_BOT_USERNAME: ${REFERRAL_BOT_USERNAME:-}
+        VITE_SUBSCRIPTION_URL: ${SUBSCRIPTION_URL}
+        VITE_SUBSCRIPTION_BONUS_ENERGY: ${SUBSCRIPTION_BONUS_ENERGY:-20}
+        VITE_SUBSCRIPTION_TITLE: ${SUBSCRIPTION_TITLE}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VIRTUAL_HOST: ${PUBLIC_DOMAIN}
+      VIRTUAL_PORT: 8080
+      VIRTUAL_PROTO: http
+    expose:
+      - "8080"
+
+volumes:
+  certs:
+  vhost:
+  html:
+  mongodb_data:
+  backend_avatar:
